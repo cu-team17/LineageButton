@@ -1,98 +1,110 @@
 package com.example.schubydooo.lineagebutton;
 
+import android.content.Context;
+import android.media.AudioManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.Process;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
+    int BLUE_LED = 5;
+    int RED_LED = 6;
+    int BLUE_BUTTON = 20;
+    int RED_BUTTON = 21;
+
+    String BUTTON_DOWN = "0";
+    String BUTTON_UP = "1";
+
+    AudioManager audioManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Log.i("onCreate", "Starting shenanigans");
-        try {
-            initGpio();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        audioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
+        try { initGpio(); } catch (IOException | InterruptedException e) { e.printStackTrace(); }
+        try { watcher(); } catch (IOException | InterruptedException e) { e.printStackTrace(); }
     }
 
-    public void initGpio() throws  IOException {
+    private String[] genCommand(String command) {
+        return new String[]{"/system/bin/su", "-c", command};
+    }
+
+    private String formatDecimal(String s, int d) {
+        return String.format(Locale.ENGLISH, s, d);
+    }
+
+    public void initGpio() throws  IOException, InterruptedException {
         Runtime r = Runtime.getRuntime();
         Process p = null;
-
-        //gpio assignment
-        String redButton = "21";
-        String blueButton = "20";
-        String redLED = "6";
-        String blueLED = "5";
 
         //Initialize red button
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  %s > /sys/class/gpio/export", redButton)});
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  in > /sys/class/gpio/gpio%s/direction", redButton)});
+        p = r.exec(genCommand(formatDecimal("echo  %d > /sys/class/gpio/export", RED_BUTTON))); p.waitFor();
+        p = r.exec(genCommand(formatDecimal("echo  in > /sys/class/gpio/gpio%d/direction", RED_BUTTON))); p.waitFor();
 
         //Initialize blue button
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  %s > /sys/class/gpio/export", blueButton)});
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  in > /sys/class/gpio/gpio%s/direction", blueButton)});
+        p = r.exec(genCommand(formatDecimal("echo  %d > /sys/class/gpio/export", BLUE_BUTTON))); p.waitFor();
+        p = r.exec(genCommand(formatDecimal("echo  in > /sys/class/gpio/gpio%d/direction", BLUE_BUTTON))); p.waitFor();
 
         //Initialize blue LED
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  %s > /sys/class/gpio/export", blueLED)});
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  out > /sys/class/gpio/gpio%s/direction", blueLED)});
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  1 > /sys/class/gpio/gpio%s/value", blueLED)});
+        p = r.exec(genCommand(formatDecimal("echo  %d > /sys/class/gpio/export", BLUE_LED))); p.waitFor();
+        p = r.exec(genCommand(formatDecimal("echo  out > /sys/class/gpio/gpio%d/direction", BLUE_LED))); p.waitFor();
+        p = r.exec(genCommand(formatDecimal("echo  0 > /sys/class/gpio/gpio%d/value", BLUE_LED))); p.waitFor();
 
         //Initialize red LED
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  %s > /sys/class/gpio/export", redLED)});
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  out > /sys/class/gpio/gpio%s/direction", redLED)});
-        p = r.exec(new String[]{"/system/bin/su", "-c", String.format("echo  1 > /sys/class/gpio/gpio%s/value", redLED)});
+        p = r.exec(genCommand(formatDecimal("echo  %d > /sys/class/gpio/export", RED_LED))); p.waitFor();
+        p = r.exec(genCommand(formatDecimal("echo  out > /sys/class/gpio/gpio%d/direction", RED_LED))); p.waitFor();
+        p = r.exec(genCommand(formatDecimal("echo  0 > /sys/class/gpio/gpio%d/value", RED_LED))); p.waitFor();
     }
 
-
-    public void turnOnLED() throws IOException {
+    public void watcher() throws IOException, InterruptedException {
         Runtime r = Runtime.getRuntime();
-        Process p = null;
+        Process blueP;
+        Process redP;
+
+        String oldRedValue = "";
+        String oldBlueValue = "";
+
         while(true) {
-            try {
-                p = r.exec("cat /sys/class/gpio/gpio21/value");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            try {
-                p.waitFor();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            BufferedReader b = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String line = "";
+            blueP = r.exec(formatDecimal("cat /sys/class/gpio/gpio%d/value", BLUE_BUTTON));
+            redP = r.exec(formatDecimal("cat /sys/class/gpio/gpio%d/value", RED_BUTTON));
+            blueP.waitFor();
+            redP.waitFor();
 
-            line = b.readLine();
+            BufferedReader blueB = new BufferedReader(new InputStreamReader(blueP.getInputStream()));
+            BufferedReader redB = new BufferedReader(new InputStreamReader(redP.getInputStream()));
 
-            if (line.equals("0"))
-            {
-                Process p2 = Runtime.getRuntime().exec("su -c 'echo 1 > /sys/class/gpio/gpio5/value'");
-                Log.i("scotttt", "line is 0");
-                try {
-                    p2.waitFor();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                BufferedReader c = new BufferedReader(new InputStreamReader(p2.getInputStream()));
-                line = c.readLine();
-                Log.i("aoeu", "--: " + line);
-            }
-            else if (line.equals("1"))
-            {
-                p = r.exec("su -c 'echo 0 > /sys/class/gpio/gpio5/value'");
-            }
+            String blueValue = blueB.readLine();
+            String redValue = redB.readLine();
 
-            b.close();
+            blueB.close();
+            redB.close();
+
+            if (blueValue.equals(BUTTON_DOWN))
+                changeLED(this.BLUE_LED, blueValue);
+            else if (!blueValue.equals(oldBlueValue))
+                r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "0", this.BLUE_LED)));
+
+            if (redValue.equals(BUTTON_DOWN))
+                changeLED(this.RED_LED, redValue);
+            else if (!redValue.equals(oldRedValue))
+                r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "0", this.RED_LED)));
+
+            oldBlueValue = blueValue;
+            oldRedValue = redValue;
         }
+    }
 
+    public void changeLED(int led, String value) throws IOException, InterruptedException {
+        Runtime r = Runtime.getRuntime();
+        r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "1", led)));
+        audioManager.adjustVolume(led == RED_LED ? AudioManager.ADJUST_LOWER : AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
+        Thread.sleep(300);
     }
 
 }
