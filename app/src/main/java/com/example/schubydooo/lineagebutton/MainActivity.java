@@ -4,6 +4,7 @@ import android.content.Context;
 import android.media.AudioManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,13 +13,13 @@ import java.lang.Process;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
-    int BLUE_LED = 5;
-    int RED_LED = 6;
-    int BLUE_BUTTON = 20;
-    int RED_BUTTON = 21;
+    int BLUE_LED = 20;
+    int RED_LED = 21;
+    int BLUE_BUTTON = 5;
+    int RED_BUTTON = 6;
 
-    String BUTTON_DOWN = "0";
-    String BUTTON_UP = "1";
+    String BUTTON_DOWN = "1";
+    String BUTTON_UP = "0";
 
     AudioManager audioManager;
 
@@ -86,25 +87,25 @@ public class MainActivity extends AppCompatActivity {
             redB.close();
 
             if (blueValue.equals(BUTTON_DOWN))
-                changeLED(this.BLUE_LED, blueValue);
+                changeLED(this.BLUE_LED);
             else if (!blueValue.equals(oldBlueValue))
-                r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "0", this.BLUE_LED)));
+                blueP = r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "0", this.BLUE_LED))); blueP.waitFor();
 
             if (redValue.equals(BUTTON_DOWN))
-                changeLED(this.RED_LED, redValue);
+                changeLED(this.RED_LED);
             else if (!redValue.equals(oldRedValue))
-                r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "0", this.RED_LED)));
+                redP = r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "0", this.RED_LED))); redP.waitFor();
 
             oldBlueValue = blueValue;
             oldRedValue = redValue;
         }
     }
 
-    public void changeLED(int led, String value) throws IOException, InterruptedException {
+    public void changeLED(int led) throws IOException, InterruptedException {
         Runtime r = Runtime.getRuntime();
-        r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "1", led)));
+        Process p = r.exec(genCommand(String.format(Locale.ENGLISH,"echo %s > /sys/class/gpio/gpio%d/value", "1", led))); p.waitFor();
         audioManager.adjustVolume(led == RED_LED ? AudioManager.ADJUST_LOWER : AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
-        Thread.sleep(300);
+        Thread.sleep(100);
     }
 
 }
